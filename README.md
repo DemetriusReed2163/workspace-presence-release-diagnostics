@@ -1,12 +1,12 @@
 # See who is online before a release moves
 
-The useful moment in a developer-tools workspace is not a green dot by itself. It is the point where a completed build needs a human nearby to inspect it. This Node service accepts a build event, publishes it through Infrai, reads presence with the same API key, and returns the release operation the caller should take.
+A green dot alone is not that useful. The real moment is when a build finishes and a human needs to inspect it. This Node service takes a build event, publishes it through Infrai using one key, reads presence with that same key, and returns the release action to take.
 
-That keeps the handoff small: `realtime.publish` records the build event, then `realtime.presence.get` supplies the live workspace context for the decision. Infrai exposes both behind a single `INFRAI_API_KEY`, so the Next.js app that calls this service does not need a second provider credential.
+Small handoff, clear flow: `realtime.publish` records the build event. Then `realtime.presence.get` supplies the live workspace context for the decision. Infrai puts both behind a single `INFRAI_API_KEY`. The Next.js app calls this service with no second provider credential. One key, one wallet for every capability, and a plain REST call from any language with no SDK.
 
 ## Run the workflow
 
-Use Node 20 or newer, then install the dependencies and provide your server-side values:
+Use Node 20 or newer. Install deps and set your server-side values:
 
 ```bash
 npm install
@@ -16,7 +16,7 @@ npm run setup
 npm start
 ```
 
-The setup script creates the `devtools-main` presence channel once. In a Next.js project I would keep `INFRAI_API_KEY` in the server environment and call this service from a route handler or build webhook. The key never belongs in a browser bundle.
+The setup script creates the `devtools-main` presence channel once. In a Next.js project I keep `INFRAI_API_KEY` in the server environment and call this service from a route handler or build webhook. The key never goes in a browser bundle.
 
 Send the concrete build event from another terminal:
 
@@ -38,19 +38,19 @@ With two workspace members online, the expected result is:
 }
 ```
 
-The transition is deliberately visible. A failed build produces `hold`; a passed build with nobody online produces `queue`; a passed build with at least one online member produces `release`. Your release runner can consume `operation`, while a developer panel can show `diagnostic` and the online identities.
+The transition is deliberately visible. A failed build produces `hold`. A passed build with nobody online produces `queue`. A passed build with at least one online member produces `release`. Your release runner can consume `operation`, while a developer panel can show `diagnostic` and the online identities.
 
 ## The boundary that matters
 
-`POST /build-events` is the only local route. Its zod schema requires `buildId`, `project`, `commitSha`, and a `status` of `passed` or `failed`. Invalid JSON and invalid fields receive a client response before anything is published.
+`POST /build-events` is the only local route. Its zod schema requires `buildId`, `project`, `commitSha`, and a `status` of `passed` or `failed`. Invalid JSON and invalid fields get a client response before anything is published.
 
-The Infrai client decodes the response envelope before considering the HTTP status, preserves structured API rejections for the route, and backs off on rate limiting. Build publication uses `build:<buildId>` as its idempotency key, so retrying the same webhook keeps one stable write identity.
+The Infrai client decodes the response envelope before looking at HTTP status. It preserves structured API rejections for the route and backs off on rate limiting. Build publication uses `build:<buildId>` as its idempotency key, so retrying the same webhook keeps one stable write identity.
 
-The one real gotcha from a Next.js angle is runtime placement: presence lookup and publication use the secret key, so keep this module in server-only code. Browser clients should receive scoped realtime tokens from a server route when they connect; this repository focuses on the server-side build-to-diagnostic handoff.
+The one real gotcha from a Next.js angle is runtime placement. Presence lookup and publication use the secret key, so keep this module in server-only code. Browser clients should get scoped realtime tokens from a server route when they connect. This repo focuses on the server-side build-to-diagnostic handoff.
 
 ## Check the decision locally
 
-The focused test does not call the network. Its input is a build status plus the current online count; it asserts the release operation that matters to the workflow.
+The focused test does not call the network. Input is a build status plus current online count. It asserts the release operation that matters to the workflow.
 
 ```bash
 npm test
